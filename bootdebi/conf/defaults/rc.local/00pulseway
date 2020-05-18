@@ -1,0 +1,5 @@
+#!/bin/sh
+
+if ! ps -aux |grep "[/]usr/sbin/pulseway"; then
+service pulseway start
+fi

@@ -1,0 +1,11 @@
+## This mod was entirely derived from the Kali Nethunter.apk for Android 
+
+## I have modified the scripts and variables to allow for automatic boot / configuration of a Debian chroot container on Android. 
+
+## You will need dm-verity disabled in order to flash this mod to /system and utilize persistent Debian chroot 
+
+## I will be releasing two versions of this mod one for systemless users and another for system su 
+
+## You may move the bootdebi folder to new locations by changing variables in /bootdebi/conf/bootdebi.conf & /system/xbin/bootdebi to represent the new locations
+
+## This mod was designed to be extremely simple & works great when using with Linux Deploy just change "Installation Path" to match $chroot_dir variable in /bootdebi/conf/bootdebi.conf.

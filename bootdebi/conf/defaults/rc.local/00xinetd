@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if ! ps -aux |grep -w "[x]inetd"; then
+service xinetd stop
+service xinetd start
+fi

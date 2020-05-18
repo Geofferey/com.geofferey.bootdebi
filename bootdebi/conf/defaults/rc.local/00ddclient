@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if ! ps -aux |grep -w "[d]dclient"; then
+ddclient --file /etc/ddclient-mobile.conf
+ddclient --file /etc/ddclient-wlan.conf
+fi

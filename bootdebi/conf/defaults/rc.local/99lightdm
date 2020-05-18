@@ -1,0 +1,6 @@
+#!/bin/sh
+
+service lightdm start
+service lightdm restart
+
+exit 0

@@ -1,0 +1,14 @@
+service Xvnc_1 
+{ 
+    type = UNLISTED
+    disable = no 
+    socket_type = stream 
+    protocol = tcp
+    wait = no 
+    user = root 
+#    only_from = 10.0.0.0,127.0.0.1
+    server = /usr/bin/x11vnc
+    server_args = -inetd -o /var/log/x11vnc.log -display :0 -auth /var/run/lightdm/root/:0 -rfbauth /etc/vnc/passwd -noshm -many -bg
+    port = 5900
+}
+

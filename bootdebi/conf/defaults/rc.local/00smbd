@@ -1,0 +1,5 @@
+#!/bin/sh
+
+if ! ps -aux |grep -w "[s]mbd"; then
+service smbd start
+fi

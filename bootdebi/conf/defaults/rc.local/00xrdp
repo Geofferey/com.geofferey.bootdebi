@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if ! ps -aux |grep -w "[x]rdp"; then
+service xrdp stop
+service xrdp start
+xrdp
+fi

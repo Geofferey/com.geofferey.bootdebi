@@ -1,0 +1,413 @@
+#!/sbin/bash
+
+
+######## FIND PATHS ########
+
+SCRIPT_PATH=$(readlink -f $0)
+
+SCRIPTS_PATH=${SCRIPT_PATH%/*}
+
+BOOTDEBI_PATH=${SCRIPTS_PATH%/*}
+
+##### SOURCE VARIABLES #####
+
+. $BOOTDEBI_PATH/conf/bootdebi.conf
+
+####### SET FUNCTIONS #######
+
+MOUNT_RW (){
+
+mount -o rw,remount /system
+
+}
+
+MOUNT_RO (){
+
+mount -o ro,remount /system
+
+}
+
+BOOTDEBI_TOGGLE (){
+
+if [ $ENABLED = 0 ]; then
+
+sed -i -e"s/^ENABLED=.*/ENABLED=1/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+echo "Bootdebi Autostart Enabled"
+echo "Bootdebi will start on boot"
+
+echo ""
+
+elif [ $ENABLED = 1 ]; then 
+
+sed -i -e"s/^ENABLED=.*/ENABLED=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+echo "Bootdebi Autostart Disabled"
+echo "Bootdebi won't start on boot"
+
+echo ""
+
+fi
+
+}
+
+LOAD_DEFAULTS_TOGGLE (){
+
+if [ $LOAD_DEFAULTS = 0 ]; then
+
+sed -i -e"s/^LOAD_DEFAULTS=.*/LOAD_DEFAULTS=1/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+echo "Load Defaults Enabled"
+
+echo ""
+
+elif [ $LOAD_DEFAULTS = 1 ]; then 
+
+sed -i -e"s/^LOAD_DEFAULTS=.*/LOAD_DEFAULTS=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+echo "Load Defaults Disabled"
+
+echo ""
+
+fi
+
+}
+
+
+BACKUP (){
+
+echo ""
+
+BATTERY_LVL=$(dumpsys battery |grep -w "level" |cut -d ":" -f2 |cut -d " " -f2)
+
+if [ $BATTERY_LVL -gt 25 ] && [ $BACKUP = 0 ]; then
+
+echo "Please be aware that a backup will only occur"
+echo "on boot if battery level is greater than 25%"
+
+echo ""
+
+echo "Your battery is currently at ""$BATTERY_LVL""%"
+
+echo ""
+
+sed -i -e"s/^BACKUP=.*/BACKUP=1/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "Backup bit set"
+
+echo ""
+
+elif [ $BACKUP = 1 ]; then 
+
+sed -i -e"s/^BACKUP=.*/BACKUP=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "Backup bit reset"
+
+echo ""
+
+else
+
+echo "Please be aware that backup will only occur"
+echo "on boot if battery level is greater than 25%"
+echo "chroot Will also be unavailable during backup"
+echo ""
+
+echo "Your battery is currently at ""$BATTERY_LVL""%"
+
+echo ""
+
+sed -i -e"s/^BACKUP=.*/BACKUP=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "Backup bit not set"
+
+echo ""
+
+fi
+
+
+}
+
+SELINUX_TOGGLE (){
+
+if [ $SELINUX = 0 ]; then
+
+sed -i -e"s/^SELINUX=.*/SELINUX=1/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+setenforce 1
+
+echo "SELINUX Permanently Enabled"
+
+echo ""
+
+elif [ $SELINUX = 1 ]; then 
+
+sed -i -e"s/^SELINUX=.*/SELINUX=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+setenforce 0
+
+echo "SELINUX Permanently Disabled"
+
+echo ""
+
+fi
+
+}
+
+BOOTDEBI_PATHS (){
+
+echo ""
+
+read -p "Enter path to chroot directory: " chroot_dir
+
+chroot_dir=$(echo $chroot_dir | sed 's:/*$::')
+
+sed -i 's:^chroot_dir=.*:chroot_dir='"$chroot_dir"':' "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "" 
+
+echo "chroot_dir set to: ""$chroot_dir"
+
+sed -i 's:^bootdebi_dir=.*:bootdebi_dir='"$BOOTDEBI_PATH"':' "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo ""
+
+if [ -e /system/xbin/bootdebi ]; then
+
+sed -i 's:^bootdebi_dir=.*:bootdebi_dir='"$BOOTDEBI_PATH"':' "/system/xbin/bootdebi"
+
+fi
+
+if [ -e /system/xbin/bootdebi-config ]; then
+
+sed -i 's:^bootdebi_dir=.*:bootdebi_dir='"$BOOTDEBI_PATH"':' "/system/xbin/bootdebi-config"
+
+fi
+
+echo "bootdebi_dir set to: ""$BOOTDEBI_PATH"
+
+echo ""
+
+}
+
+MOTD (){
+
+echo ""
+
+echo "This is your current message:"
+echo "$MOTD"
+
+echo ""
+
+read -p "Enter a login message: " MOTD
+
+if [ -z "$MOTD" ]; then
+
+echo ""
+
+exit 0
+
+else
+
+sed -i -e"s/^MOTD=.*/MOTD='$MOTD'/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+fi
+
+}
+
+HOSTNAME (){
+
+echo ""
+
+if [ -z $HOSTNAME ]; then
+
+HOSTNAME=debian-$(getprop ro.build.product)
+
+fi
+
+echo "This is your current hostname:"
+echo "$HOSTNAME"
+
+HOSTNAME=
+
+echo ""
+
+read -p "Enter a hostname: " HOSTNAME
+
+if [ -z "$HOSTNAME" ]; then
+
+echo ""
+
+exit 0
+
+else
+
+sed -i -e"s/^HOSTNAME=.*/HOSTNAME='$HOSTNAME'/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+fi
+}
+
+USERNAME () {
+
+if [ -z $USERNAME ]; then
+USERNAME=root
+fi
+
+CUR_USERNAME=$USERNAME
+
+echo ""
+
+echo "This is your current username:"
+echo "$CUR_USERNAME"
+
+echo ""
+
+read -p "Enter a new username: " USERNAME
+
+if [ -z "$USERNAME" ]; then
+
+echo ""
+
+exit 0
+
+elif [ $USERNAME != $CUR_USERNAME ] && [ ! -z $USERNAME ]; then 
+
+echo ""
+
+echo "This is your new username:"
+echo "$USERNAME"
+
+sed -i -e"s/^USERNAME=.*/USERNAME='$USERNAME'/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+$busybox chroot $chroot_dir /usr/sbin/usermod -l "$USERNAME" "$CUR_USERNAME"
+
+$busybox chroot $chroot_dir /usr/sbin/usermod -d /home/"$USERNAME" -m "$USERNAME"
+
+$busybox chroot $chroot_dir /usr/sbin/usermod -aG root,sudo $USERNAME
+
+echo ""
+
+$busybox chroot $chroot_dir /usr/bin/passwd $USERNAME
+
+echo ""
+
+echo "Configure VNC passwd:"
+
+if [ ! -d $chroot_dir/etc/vnc ]; then
+mkdir -p $chroot_dir/etc/vnc
+fi
+
+$busybox chroot $chroot_dir /usr/bin/vncpasswd /etc/vnc/passwd
+
+fi
+
+echo ""
+
+}
+
+RESTORE (){
+
+BATTERY_LVL=$(dumpsys battery |grep -w "level" |cut -d ":" -f2 |cut -d " " -f2)
+
+echo ""
+
+if [ $RESTORE = 0 ]; then
+
+echo "Please be aware that a restore will only occur"
+echo "on boot if battery level is greater than 25%"
+
+echo ""
+
+echo "Your battery is currently at ""$BATTERY_LVL""%"
+
+echo ""
+
+sed -i -e"s/^RESTORE=.*/RESTORE=1/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "Restore bit set"
+
+echo ""
+
+elif [ $RESTORE = 1 ]; then 
+
+sed -i -e"s/^RESTORE=.*/RESTORE=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+echo "retore bit unset"
+
+echo ""
+
+fi
+
+}
+
+
+HELP () {
+echo ""
+echo "B00TD3B! options:"
+echo ""
+echo "	-b perform a BACKUP on boot"
+echo "	-e toggle BOOTDEBI"
+echo "	-h displays this HELP message"
+echo "	-l toggle LOAD_DEFAULTS"
+echo "	-m configure the Message of Day"
+echo "	-n configure the HOSTNAME"
+echo "	-p configure bootdebi PATHS"
+echo "	-r toggle automatic RESTORE"
+echo "	-s toggle SELINUX"
+echo "	-u change USERNAME"
+echo ""
+exit 0
+}
+
+if [[ $@ ]]; then
+    while getopts "behlmnprsu" OPTION; do
+        case $OPTION in
+            b)
+                BACKUP
+                ;;
+            e) 
+                BOOTDEBI_TOGGLE
+                ;;
+            h)
+                HELP
+                ;;
+            l)
+                LOAD_DEFAULTS_TOGGLE
+                ;;
+            m)
+                MOTD
+                ;;
+            n)
+                HOSTNAME
+                ;;
+            p)
+                BOOTDEBI_PATHS
+                ;;
+            r)
+                RESTORE
+                ;;
+            s)
+                SELINUX_TOGGLE
+                ;;
+            u)
+                USERNAME
+                ;;
+            \?)
+                HELP
+                ;;
+        esac
+    done
+else
+    HELP
+fi

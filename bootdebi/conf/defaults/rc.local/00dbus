@@ -1,0 +1,6 @@
+#!/bin/bash
+
+service dbus start
+service dbus restart
+
+exit 0

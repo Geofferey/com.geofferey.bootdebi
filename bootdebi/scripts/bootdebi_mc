@@ -1,0 +1,58 @@
+#!/system/bin/sh
+
+####### IMPORT BOOTDEBI ENV #######
+
+SCRIPT_PATH=$(readlink -f $0)
+SCRIPTS_PATH=${SCRIPT_PATH%/*}
+BOOTDEBI_PATH=${SCRIPTS_PATH%/*}
+#. ${SCRIPT_PATH%/*}/bootdebi_env
+. $BOOTDEBI_PATH/conf/bootdebi.conf
+
+####### ENVIRONMENT SETUP #######
+
+unset $USERNAME
+
+USERNAME=$*
+
+if [ -z $USERNAME ]; then
+
+. $BOOTDEBI_PATH/conf/bootdebi.conf
+
+fi
+
+if [ $USERNAME = root ]; then
+
+####### EXPORT ROOT ENV #######
+export bin=/system/bin
+export chroot_dir=$chroot_dir
+PRESERVED_PATH=$PATH
+export PATH=/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin:$PATH
+export TERM=xterm
+export HOME=/root
+export USER=root
+export LOGNAME=root
+unset LD_PRELOAD
+
+else
+
+####### EXPORT USER ENV #######
+export bin=/system/bin
+export chroot_dir=$chroot_dir
+PRESERVED_PATH=$PATH
+export PATH=/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin:$PATH
+export TERM=xterm
+export HOME=/home/$USERNAME
+export USER=$USERNAME
+export LOGNAME=$USERNAME
+unset LD_PRELOAD
+
+fi
+
+mount -o remount,suid /data
+
+
+######### TERMINAL SETUP #########
+
+clear
+
+exec $busybox chroot $chroot_dir /usr/bin/mc $*

@@ -1,0 +1,69 @@
+#!/system/xbin/bash
+
+# Android Linux chroot DNS Updater Script
+# Written by: Geofferey @ XDA / IG
+# For updating /etc/resolv.conf in chroot
+# Tested on Kali Nethunter / Linux Deploy
+# Chroot placed in directory not file.img
+# Works on Android Version Nougat 7.1.2 
+# Place in init.d of Nethunter, Debian or
+# Android
+
+## Source the variables
+
+SCRIPT_PATH=$(readlink -f $0)
+
+SCRIPTS_PATH=${SCRIPT_PATH%/*}
+
+BOOTDEBI_PATH=${SCRIPTS_PATH%/*}
+
+. $BOOTDEBI_PATH/conf/bootdebi.conf
+
+## Begin main loop
+
+while true; do
+
+## Set the location of resolv.conf in chroot
+
+CHROOT_RESOLV_CONF=$chroot_dir/etc/resolv.conf
+
+## Retrieve current Android DNS setting & assign to var
+
+DNS_1="$(getprop net.dns1)"
+
+## Begin secondary loop
+
+while true; do
+
+## Retrieve comparison Android DNS setting & assing to var
+
+DNS_COMP="$(getprop net.dns1)"
+
+sleep 10
+
+## Compare the vars, if diff break secondary loop
+
+if [ "$DNS_COMP" != "$DNS_1" ]; then
+break
+fi
+
+done
+
+## Obtain current DNS & set the name servers in chroot resolv.conf
+
+DNS_1="$(getprop net.dns1)"
+DNS_2="$(getprop net.dns2)"
+
+if [ ! -z $DNS_1 ]; then
+
+echo "nameserver" $DNS_1 > $CHROOT_RESOLV_CONF
+
+fi
+
+if [ ! -z $DNS_2 ]; then
+
+echo "nameserver" $DNS_2 >> $CHROOT_RESOLV_CONF
+
+fi
+
+done

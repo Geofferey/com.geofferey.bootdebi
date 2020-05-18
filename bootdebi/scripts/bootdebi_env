@@ -1,0 +1,19 @@
+#!/system/bin/sh
+
+######### IMPORT BOOTKALI INITIALIZATION #########
+SCRIPT_PATH=$(readlink -f $0)
+. ${SCRIPT_PATH%/*}/bootdebi_init
+
+######### EXPORT ENVIRONMENT #########
+export bin=/system/bin
+export chroot_dir=$chroot_dir
+PRESERVED_PATH=$PATH
+export PATH=/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin:$PATH
+export TERM=xterm-256color
+export HOME=/root
+export USER=root
+export LOGNAME=root
+unset LD_PRELOAD
+
+######### TERMINAL SETUP #########
+clear

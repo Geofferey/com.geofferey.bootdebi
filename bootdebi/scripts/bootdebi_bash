@@ -1,0 +1,17 @@
+#!/system/bin/sh
+
+######### IMPORT BOOTKALI ENVIRONMENT #########
+SCRIPT_PATH=$(readlink -f $0)
+. ${SCRIPT_PATH%/*}/bootdebi_env
+
+###### CHECK IF RESTORE IN PROGRESS ######
+
+if [ -f $chroot_dir/.bootdebi-restore ]; then
+
+  echo "A restore is currrently in progress!"
+  echo "Exiting..."
+  exit 0
+
+fi
+
+$busybox chroot $chroot_dir /bin/bash -i

@@ -1,0 +1,446 @@
+#!/system/xbin/bash
+
+if [ -x /system/xbin/busybox_nh ]; then
+	busybox=/system/xbin/busybox_nh
+elif [ -x /sbin/busybox_nh ]; then
+	busybox=/sbin/busybox_nh
+elif [ -x /system/xbin/busybox ]; then
+	busybox=/system/xbin/busybox
+elif [ -x /data/local/bin/busybox ]; then
+	busybox=/data/local/bin/busybox
+elif [ -x /system/bin/busybox ]; then
+	busybox=/system/bin/busybox
+elif [ -x /su/bin/busybox ]; then
+	busybox=/su/bin/busybox
+else
+	echo "Busybox not found!  Please install to continue..."
+	log "Busybox not found!"
+	exit 1
+fi
+
+######### CHECK FOR ROOT #########
+f_checkforroot(){
+	perm=$(id | $busybox cut -b 5)
+	if [ "$perm" != "0" ]; then
+		echo "ROOT NOT DETECTED! Type: su or install SuperSU to fix"
+		exit 1
+	fi
+}
+
+####### FIND BOOTDEBI PATH #######
+
+SCRIPT_PATH=$(readlink -f $0)
+
+SCRIPTS_PATH=${SCRIPT_PATH%/*}
+
+BOOTDEBI_PATH=${SCRIPTS_PATH%/*}
+
+######## SOURCE VARIABLES ########
+
+. $BOOTDEBI_PATH/conf/bootdebi.conf
+
+chroot_dir=$(echo "$chroot_dir" | sed 's:/*$::')
+
+bootdebi_dir=$(echo "$bootdebi_dir" | sed 's:/*$::')
+
+######### SET SELINUX POLICY #########
+
+if [ -e $bootdebi_dir/conf/seploicy ]; then
+
+supolicy --load $bootdebi_dir/conf/seploicy
+
+fi
+
+su -c setenforce $SELINUX
+
+####### PERFORM RESTORE #########
+
+BATTERY_LVL=$(dumpsys battery |grep -w "level" |cut -d ":" -f2 |cut -d " " -f2)
+
+if [ ! -d "$chroot_dir" ] && [ -e $BACKUP_DIR/debian-chroot.tar.gz ] && [ $RESTORE = 1 ] && [ "$BATTERY_LVL" -gt 25 ]; then
+
+mkdir -p "$chroot_dir"
+
+touch "$chroot_dir"/.bootdebi-restore
+
+chmod 0000 "$chroot_dir"/.bootdebi-restore
+
+tar xpvzf $BACKUP_DIR/debian-chroot.tar.gz -C "$chroot_dir" && rm "$chroot_dir"/.bootdebi-restore
+
+elif [ -d "$chroot_dir" ] && [ -e $BACKUP_DIR/debian-chroot.tar.gz ] && [ $RESTORE = 1 ] && [ "$BATTERY_LVL" -gt 25 ] && [ -e "$chroot_dir"/.bootdebi-restore ]; then
+
+tar xpvzf $BACKUP_DIR/debian-chroot.tar.gz -C "$chroot_dir" && rm "$chroot_dir"/.bootdebi-restore
+
+fi
+
+######## PERFORM BACKUP #########
+
+BATTERY_LVL=$(dumpsys battery |grep -w "level" |cut -d ":" -f2 |cut -d " " -f2)
+
+if [ "$BACKUP" = 1 ] && [ -d "$chroot_dir" ] && [ "$BATTERY_LVL" -gt 25 ]; then
+
+cd $chroot_dir
+
+tar cvpzf /data/local/debian-chroot.tar.gz .
+
+mount -o rw,remount /system
+
+sed -i -e"s/^BACKUP=.*/BACKUP=0/" "$BOOTDEBI_PATH/conf/bootdebi.conf"
+
+mount -o ro,remount /system
+
+cd -
+
+fi
+
+######### CHECK ENAABLED ##########
+
+if [ $ENABLED = 0 ]; then
+
+exit 0
+
+fi
+
+######## CHECK FOR RESTORE ########
+
+#if [ -f $chroot_dir/.bootdebi-restore ]; then
+#
+#  echo "A restore is currrently in progress!"
+#  echo "Exiting..."
+ # exit 0
+#
+#fi
+
+######### CHECK FOR INSTALL #########
+#
+# There is a bug that will create the resolv.conf
+# If we continue on with bootdebi even after we
+# remove chroot.  So stop here if removed or else
+# chroot is never uninstalled.
+#
+
+if [ ! -d "$chroot_dir/usr" ]; then
+    echo "Missing a required folder. Something isn't right"
+    exit 1
+fi
+
+####### APPLY DEFAULT CONFIGS #######
+#
+# Apply some configs compatible with chroot services
+# This occurs only once per each service to allow
+# for manual user configuration afterwards.
+#
+
+if [ $LOAD_DEFAULTS = 1 ]; then
+
+    if [ ! -d "$chroot_dir/etc/rc.local" ] || [ ! -e "$chroot_dir/etc/rc.local/.bootdebi" ]; then
+
+        if [ ! -d "$chroot_dir/etc/rc.local" ]; then
+
+            mkdir "$chroot_dir/etc/rc.local/"
+
+        fi
+
+        cp -R "$bootdebi_dir/conf/defaults/rc.local/." "$chroot_dir/etc/rc.local"
+
+        chmod -R 0000 "$chroot_dir/etc/rc.local"
+
+        touch "$chroot_dir/etc/rc.local/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/rc.local/.bootdebi"
+
+    fi
+    
+    if [ -f "$chroot_dir/etc/ssh/sshd_config" ] && [ ! -e "$chroot_dir/etc/ssh/.bootdebi" ]; then
+
+        touch "$chroot_dir/etc/ssh/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/ssh/.bootdebi"
+
+        find "$chroot_dir/etc/rc.local" -name "*ssh" -exec chmod 0500 {} \;
+
+    fi
+
+    if [ -d "$chroot_dir/etc/X11" ] && [ ! -e "$chroot_dir/etc/X11/.bootdebi" ]; then
+
+        cp "$bootdebi_dir/conf/defaults/X11/xorg.conf" "$chroot_dir/etc/X11/xorg.conf"
+
+        chmod 0644 "$chroot_dir/etc/X11/xorg.conf"
+
+        touch "$chroot_dir/etc/X11/.bootdebi"
+
+            chmod 0000 "$chroot_dir/etc/X11/.bootdebi"
+
+    fi
+
+    if [ -d "$chroot_dir/etc/lightdm" ] && [ ! -e "$chroot_dir/etc/lightdm/.bootdebi" ]; then
+
+        cp "$bootdebi_dir/conf/defaults/lightdm/lightdm.conf" "$chroot_dir/etc/lightdm/lightdm.conf" 
+
+        chmod 0644 "$chroot_dir/etc/lightdm/lightdm.conf"
+
+        touch "$chroot_dir/etc/lightdm/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/lightdm/.bootdebi"
+
+        find "$chroot_dir/etc/rc.local" -name "*lightdm" -exec chmod 0500 {} \;
+
+    fi
+
+    if [ -d "$chroot_dir/etc/xinetd.d" ] && [ ! -e "$chroot_dir/etc/xinetd.d/.bootdebi" ]; then
+
+        cp -R "$bootdebi_dir/conf/defaults/xinetd.d/." "$chroot_dir/etc/xinetd.d"
+
+        chmod -R 0644 "$chroot_dir/etc/xinetd.d/"
+
+        touch "$chroot_dir/etc/xinetd.d/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/xinetd.d/.bootdebi"
+
+        find  "$chroot_dir/etc/rc.local" -name "*xinetd" -exec chmod 0500 {} \;
+
+    fi
+
+    if [ -d "$chroot_dir/etc/xrdp" ] && [ ! -e "$chroot_dir/etc/xrdp/.bootdebi" ]; then
+
+        cp "$bootdebi_dir/conf/defaults/xrdp/xrdp.ini" "$chroot_dir/etc/xrdp/xrdp.ini" 
+
+        chmod 0644 "$chroot_dir/etc/xrdp/xrdp.ini"
+
+        touch "$chroot_dir/etc/xrdp/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/xrdp/.bootdebi"
+
+        find "$chroot_dir/etc/rc.local" -name "*xrdp" -exec chmod 0500 {} \;
+
+    fi
+
+    if [ -d "$chroot_dir/etc/dbus-1" ] && [ ! -e "$chroot_dir/etc/dbus-1/.bootdebi" ]; then
+
+        touch "$chroot_dir/etc/dbus-1/.bootdebi"
+
+        chmod 0000 "$chroot_dir/etc/dbus-1/.bootdebi"
+
+        find "$chroot_dir/etc/rc.local" -name "*dbus" -exec chmod 0500 {} \;
+
+    fi
+    
+fi
+
+if [ -e "$chroot_dir"/etc/motd ] && [ -z "$MOTD" ]; then
+   echo "Debian GNU/Linux - [running via bootdebi]" > "$chroot_dir/etc/motd"
+
+else
+   echo "$MOTD" > "$chroot_dir"/etc/motd
+   chmod 0644 "$chroot_dir"/etc/motd
+fi
+
+
+######### SET TUN ########
+mkdir -p /dev/net
+rm -f /dev/net/tun
+
+# This appears to work with miredo
+mknod /dev/net/tun c 10 200
+
+# ln -s /dev/tun /dev/net/tun 2> /dev/null
+
+######### SET DNS ########
+> $chroot_dir/etc/resolv.conf # empty dns entries
+
+for i in 1 2 3 4; do
+	if [ -z "$(getprop net.dns${i})" ]; then
+		# we go through 1-4 dns servers and break out of loop on empty
+		break
+	else
+		# add local/device dns server first
+		echo "nameserver $(getprop net.dns${i})" >> $chroot_dir/etc/resolv.conf
+	fi
+done
+
+# add two default dns entries
+echo "nameserver 8.8.8.8" > $chroot_dir/etc/resolv.conf
+echo "nameserver 8.8.4.4" >> $chroot_dir/etc/resolv.conf
+chmod 644 $chroot_dir/etc/resolv.conf
+
+######### MOUNT #########
+
+## Should run always (https://su.chainfire.eu/#how-mount)
+$busybox mount -o remount,suid /data
+
+mount_sdcard() {
+	mountpoint -q "$chroot_dir/sdcard" && return 0
+
+	for sdcard in \
+		"$EXTERNAL_STORAGE" \
+		/storage/emulated/0 \
+		/storage/emulated/legacy \
+		/storage/sdcard0 \
+		/sdcard
+	do
+		[ -d "$sdcard" ] &&
+			$busybox mount -o bind "$sdcard" "$chroot_dir/sdcard" &&
+				return 0
+	done
+	return 1
+}
+
+mount_external_sd() {
+	mountpoint -q "$chroot_dir/external_sd" && return 0
+
+	for external_sd in \
+		/storage/extSdCard \
+		/storage/sdcard1 \
+		/storage/external_sd \
+		/external_sd
+	do
+		[ -d "$external_sd" ] &&
+			$busybox mount -o bind "$external_sd" "$chroot_dir/external_sd" &&
+				return 0
+	done
+	return 1
+}
+
+mount_usbdisk() {
+	mountpoint -q "$chroot_dir/mnt/usbdisk" && return 0
+
+	for usbdisk in /storage/usb*; do
+		[ -d "$usbdisk" ] &&
+			$busybox mount -o bind "$usbdisk" "$chroot_dir/mnt/usbdisk" &&
+				return 0
+	done
+	return 1
+}
+
+mount_external_storage() {
+	external_sd_mounted=false
+	usbdisk_mounted=false
+	mount_external_sd && external_sd_mounted=true
+	mount_usbdisk && usbdisk_mounted=true
+
+	# try marshmallow storage names
+	for storage in /storage/*-*; do
+		# if both mount successfully then skip
+		$external_sd_mounted && $usbdisk_mounted && return
+		if [ -d "$storage" ]; then
+			if ! $external_sd_mounted; then
+				$busybox mount -o bind "$storage" "$chroot_dir/external_sd" &&
+					external_sd_mounted=true
+			elif ! $usbdisk_mounted; then
+				$busybox mount -o bind "$storage" "$chroot_dir/usbdisk" &&
+					usbdisk_mounted=true
+			fi
+		fi
+	done
+}
+
+# If chroot's /dev is mounted, assume the chroot is already running and skip initialization
+if ! $busybox mountpoint -q $chroot_dir/dev; then
+	f_checkforroot
+	
+	if [ ! -d $chroot_dir/system_root/sbin ]; then
+		mkdir -p $chroot_dir/system_root/sbin
+	fi
+	
+    $busybox mount -r -o bind /sbin $chroot_dir/system_root/sbin
+    
+#    $busybox mount -r -o bind /mnt $chroot_dir/mnt
+
+#	$busybox mount -r -o bind / $chroot_dir/system_root
+
+#	if [ ! -d $chroot_dir/system_root ]; then
+#		mkdir $chroot_dir/system_root
+#	fi
+
+#	$busybox mount -r -o bind / $chroot_dir/system_root
+#	$busybox mount -r -o bind /persist $chroot_dir/system_root/persist
+
+	if [ ! -d $chroot_dir/system ]; then
+		mkdir $chroot_dir/system
+	fi
+
+	$busybox mount -r -o bind /system $chroot_dir/system
+
+	if [ ! -d $chroot_dir/data ]; then
+		mkdir $chroot_dir/data
+	fi
+
+	$busybox mount -r -o bind /data $chroot_dir/data
+	
+    $busybox mount $chroot_dir/data -o remount,ro,bind
+    
+    if [ ! -d $chroot_dir/mnt/media/0 ]; then
+    
+        mkdir -p $chroot_dir/mnt/media/0
+        
+    fi
+    
+    chown aid_media_rw:aid_media_rw $chroot_dir/mnt/media/0
+    
+    $busybox mount -r -o bind /data/media/0 $chroot_dir/mnt/media/0
+
+	# enable depmod/modprobe support in rootfs
+	$busybox mount -r -o bind /system/lib/modules $chroot_dir/lib/modules
+
+	mount_sdcard
+	mount_external_storage
+
+	$busybox mount -o bind /dev $chroot_dir/dev
+	$busybox mount -t devpts devpts $chroot_dir/dev/pts
+	$busybox mount -t proc proc $chroot_dir/proc
+	$busybox mount -t sysfs sysfs $chroot_dir/sys
+
+	if [ ! -d $chroot_dir/dev/shm ]; then
+
+	mkdir $chroot_dir/dev/shm
+	chmod 777 $chroot_dir/dev/shm
+
+	fi
+
+	# SETUP TMPFS MOUNTS (HOPE THIS IS OK)
+	$busybox mount -t tmpfs -o remount,size=32m $chroot_dir/dev
+	$busybox mount -t tmpfs tmpfs -o size=128m $chroot_dir/dev/shm
+	$busybox mount -t tmpfs tmpfs -o size=128m $chroot_dir/tmp
+	$busybox mount -t tmpfs tmpfs -o size=32m $chroot_dir/run
+	$busybox mount -t tmpfs tmpfs -o size=32m $chroot_dir/var/tmp
+
+	# PLACE /var/log IN TMPFS TO REDUCE NAND WEAR
+	$busybox mount -t tmpfs tmpfs -o size=32m $chroot_dir/var/log
+
+	$busybox chmod 666 /dev/null
+	$busybox chmod 777 $chroot_dir/dev/shm
+	
+	touch $chroot_dir/run/utmp
+    chmod 666 $chroot_dir/run/utmp
+	touch $chroot_dir/var/log/wtmp
+    touch $chroot_dir/var/log/btmp
+
+	# SET 250MB TO ALLOW POSTGRESQL #
+	$busybox sysctl -w kernel.shmmax=134217728
+    $busybox sysctl -w kernel.shmall=134217728
+	
+	# NETWORK SETTINGS #
+
+	if [[ -z $HOSTNAME ]]; then
+
+    export HOSTNAME=debian-$(getprop ro.build.product)
+
+	fi
+
+	$busybox sysctl -w net.ipv4.ip_forward=1
+	echo "127.0.0.1		 localhost $HOSTNAME" > $chroot_dir/etc/hosts
+	echo "::1				 localhost ip6-localhost ip6-loopback" >> $chroot_dir/etc/hosts
+	echo $HOSTNAME > $chroot_dir/proc/sys/kernel/hostname
+
+	# lastly start automatic resolv.conf updater & rc.local
+	$bootdebi_dir/scripts/bootdebi_resolv >> /dev/null 2>&1 &
+	
+	## Internal INIT (/etc/rc.local) ##
+    #$busybox chroot $chroot_dir /bin/run-parts /etc/rc.local/ > /dev/null 2>&1 &
+
+	echo "The Debian chroot has been started."
+	log "The Debian chroot has been started."
+else
+	clear
+
+fi

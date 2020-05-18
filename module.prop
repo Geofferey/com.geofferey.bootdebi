@@ -1,0 +1,6 @@
+id=com.geofferey.bootdebi
+name=B007D3Bi
+version=v1.1D
+versionCode=100
+author=geofferey@XDA
+description=Brings Debian based chroots and services to life during boot. Using Linux Deploy set your Installation type: to Directory and the Installation path: to /data/debian. Place init.d style startup scripts for services in chroot_dir/etc/rc.local.

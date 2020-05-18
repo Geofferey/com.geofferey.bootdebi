@@ -1,0 +1,6 @@
+# Scripts placed in this directory will be 
+# executed upon boot after the chroot has 
+# started in the Android env
+# If you wish to run commands in chroot 
+# utilize bootdebi $SERVICE start/stop or
+# bootdebi custom_cmd /path/in/chroot
